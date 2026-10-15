@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<title>PK Nantes Bordeaux</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+:root{--bg:#0b0f14;--fg:#f5f7fa;--muted:#9aa7b5;--card:#151b23;--line:#263140;--accent:#3dd68c;--bgfade:1.2s}
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;transition:background var(--bgfade) ease;padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom)}
+body[data-state=warn]{--bg:#ff9500;--fg:#111;--muted:#3a2a00;--card:#ffb340;--line:#a35f00}
+body[data-state=alert]{--bg:#d70015;--fg:#fff;--muted:#ffd6da;--card:#b00012;--line:#ff8a95}
+header{display:flex;align-items:center;gap:12px;padding:10px 0;flex-wrap:wrap}
+header h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.04em;flex:1;min-width:140px}
+nav{display:flex;gap:6px}
+nav button{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:15px;font-weight:600;min-height:44px}
+nav button[aria-selected=true]{outline:3px solid var(--fg)}
+main{max-width:760px;margin:0 auto}
+section[hidden]{display:none}
+#line-name{font-size:clamp(15px,4vw,20px);font-weight:700;letter-spacing:.05em;margin-top:8px}
+#pk{font-size:clamp(56px,19vw,150px);font-weight:900;line-height:1;margin:10px 0 4px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+#pk.dim{opacity:.6}
+#conf{font-weight:700;font-size:18px;min-height:26px}
+#conf[data-l=high]::before{content:"● ";color:var(--accent)} #conf[data-l=medium]::before{content:"● ";color:#ffd60a} #conf[data-l=low]::before{content:"● ";color:#ff453a}
+#banner{font-size:clamp(22px,6vw,34px);font-weight:900;margin:12px 0 2px}
+#banner-sub{font-size:20px;font-weight:600;min-height:28px}
+#status{font-weight:700;margin:8px 0;min-height:24px}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+.stat small{display:block;color:var(--muted);font-weight:600}
+.stat b{font-size:24px;font-variant-numeric:tabular-nums}
+button,input,select,textarea{font:inherit}
+button.big{background:var(--fg);color:var(--bg);border:0;border-radius:14px;padding:16px;font-weight:800;font-size:18px;width:100%;min-height:56px}
+button.sm{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:40px}
+button.danger{border-color:#ff453a}
+details{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;margin:14px 0}
+summary{font-weight:700;min-height:32px}
+label.f{display:block;margin:10px 0;font-weight:600}
+input,select,textarea{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:44px}
+input[type=color]{padding:2px}input[type=range]{padding:0}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.zone{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px;margin:8px 0;flex-wrap:wrap}
+.zone.off{opacity:.55}.zinfo{flex:1;min-width:160px}.swatch{width:14px;height:40px;border-radius:6px}
+.muted{color:var(--muted);font-size:14px}.warn-txt{font-weight:700}
+.sw{display:flex;align-items:center;gap:6px}.sw input{width:22px;min-height:22px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:6px;border-bottom:1px solid var(--line);vertical-align:top}
+#map{height:calc(100vh - 150px);min-height:320px;border-radius:14px;margin-top:8px;background:#222}
+pre#dl-log{white-space:pre-wrap;font-size:13px;color:var(--muted)}
+h2{font-size:18px;margin:18px 0 6px}
+.note{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body data-state="normal">
+<header>
+  <h1>PK · NANTES → BORDEAUX <span class="muted">v3</span></h1>
+  <nav>
+    <button data-tab="track" aria-selected="true">Suivi</button>
+    <button data-tab="zones" aria-selected="false">Zones</button>
+    <button data-tab="map" aria-selected="false">Carte</button>
+    <button data-tab="data" aria-selected="false">Données</button>
+  </nav>
+</header>
+<main>
+<section id="tab-track">
+  <div id="line-name">LIGNE —</div>
+  <div id="pk" aria-live="polite">PK —</div>
+  <div id="conf"></div>
+  <div id="banner">🟢 NORMAL</div>
+  <div id="banner-sub"></div>
+  <div id="status"></div>
+  <div class="stats">
+    <div class="stat"><small>Vitesse</small><b id="speed">—</b></div>
+    <div class="stat"><small>Précision GPS</small><b id="acc">—</b></div>
+    <div class="stat"><small>Sens</small><b id="dir">—</b></div>
+    <div class="stat"><small>Distance à la voie</small><b id="dist">—</b></div>
+  </div>
+  <button class="big" id="gps-btn">Démarrer le GPS</button>
+  <details>
+    <summary>Simulation (test sans bouger, sur les vraies géométries)</summary>
+    <label class="f">Ligne <select id="sim-line"></select></label>
+    <label class="f">PK de départ : <b id="sim-pk-val">—</b><input id="sim-pk" type="range" min="0" max="100" value="50"></label>
+    <div class="row">
+      <label class="f">Sens <select id="sim-dir"><option value="1">PK croissant</option><option value="-1">PK décroissant</option></select></label>
+      <label class="f">Vitesse (km/h) <input id="sim-speed" type="number" value="140" min="10" max="320"></label>
+      <label class="f">Accélération <select id="sim-mult"><option value="1">×1</option><option value="5">×5</option><option value="20">×20</option></select></label>
+    </div>
+    <button class="big" id="sim-btn">Lancer la simulation</button>
+  </details>
+  <p class="note">Le navigateur ne suit pas le GPS en arrière-plan : garde l'écran allumé et la page au premier plan (verrouillage d'écran évité automatiquement quand c'est possible).</p>
+</section>
+
+<section id="tab-zones" hidden>
+  <h2>Zones PK</h2>
+  <div id="zone-list"></div>
+  <form id="zone-form">
+    <h2 id="zone-form-title">Nouvelle zone</h2>
+    <label class="f">Ligne <select id="zone-line"></select></label>
+    <div class="row">
+      <label class="f">PK début <input id="zone-pk1" placeholder="120+000" required inputmode="text"></label>
+      <label class="f">PK fin <input id="zone-pk2" placeholder="135+000" required inputmode="text"></label>
+    </div>
+    <label class="f">Nom <input id="zone-name" placeholder="Zone travaux"></label>
+    <div class="row">
+      <label class="f">Couleur <input id="zone-color" type="color" value="#d70015"></label>
+      <label class="f">Description <input id="zone-desc"></label>
+    </div>
+    <div class="row"><button class="big" type="submit">Enregistrer</button><button class="big" type="button" id="zone-cancel" style="background:var(--card);color:var(--fg)">Annuler</button></div>
+  </form>
+  <p class="note">Orange à moins de 1 km de l'entrée, rouge dans la zone, dans les deux sens. Les zones qui se chevauchent sont fusionnées (rouge jusqu'à la sortie de l'ensemble).</p>
+</section>
+
+<section id="tab-map" hidden><div id="map"></div></section>
+
+<section id="tab-data" hidden>
+  <h2>Données ferroviaires</h2>
+  <p>Lignes SNCF Réseau n° <b>530 000</b> (Nantes → La Roche-sur-Yon → La Rochelle → Rochefort → Saintes) et <b>500 000</b> (Chartres → … → Saintes → Bordeaux-St-Jean). PK réels issus d'OpenStreetMap (étiquette <code>ref:FR:SNCF_Reseau</code>), interpolés entre les PK de chaque tronçon.</p>
+  <button class="big" id="btn-dl">Télécharger / mettre à jour les données</button>
+  <pre id="dl-log"></pre>
+  <div id="data-status"></div>
+  <div class="row" style="margin-top:12px">
+    <label class="f">Importer un JSON <input type="file" id="file-in" accept=".json,application/json"></label>
+    <button class="sm" id="btn-export" style="align-self:end">Exporter les données</button>
+  </div>
+  <p class="note">À faire une fois en Wi-Fi : les données sont gardées sur l'appareil (IndexedDB) et le site fonctionne ensuite hors ligne. Données © contributeurs OpenStreetMap (licence ODbL). Vérifie la couverture : un PK n'est fiable que là où les tronçons existent (trous listés ci-dessus).</p>
+</section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>/* Moteur ferroviaire : GPS -> ligne -> PK, zones et alertes. Sans dépendance DOM (testable sous Node). */
+(function (root) {
+  'use strict';
+  const M_LAT = 110540, M_LON = 111320;
+  const CELL = 100; // grille 0,01°
+
+  /* ---------- Formats PK ---------- */
+  function formatPK(km) {
+    if (km == null || !isFinite(km)) return '—';
+    let k = Math.floor(km), m = Math.round((km - k) * 1000);
+    if (m >= 1000) { k += 1; m -= 1000; }
+    return k + '+' + String(m).padStart(3, '0');
+  }
+  function parsePK(s) {
+    s = String(s).trim().replace(/\s+/g, '');
+    let m = /^(\d+)\+(\d{1,3})$/.exec(s);
+    if (m) return parseInt(m[1], 10) + parseInt(m[2], 10) / 1000;
+    s = s.replace(',', '.');
+    const v = parseFloat(s);
+    return isFinite(v) ? v : null;
+  }
+  function fmtDist(m) {
+    return m >= 1000 ? (m / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(m / 10) * 10 + ' m';
+  }
+
+  /* ---------- Construction d'une ligne à partir de données OSM (Overpass "out geom") ---------- */
+  function parseRef(tags, lineId) {
+    const raw = tags && tags['ref:FR:SNCF_Reseau'];
+    if (!raw) return null;
+    for (const part of raw.split(';')) {
+      const f = part.split(',').map(x => x.trim());
+      if (f[0] !== lineId || f.length < 5) continue;
+      const a = Math.abs(parseFloat(f[f.length - 2])), b = Math.abs(parseFloat(f[f.length - 1]));
+      if (isFinite(a) && isFinite(b)) return { track: f[2], a, b };
+    }
+    return null;
+  }
+  function pathKm(g) {
+    let s = 0;
+    for (let i = 1; i < g.length; i++) {
+      const c = Math.cos((g[i].lat + g[i - 1].lat) * Math.PI / 360);
+      s += Math.hypot((g[i].lat - g[i - 1].lat) * M_LAT, (g[i].lon - g[i - 1].lon) * M_LON * c);
+    }
+    return s / 1000;
+  }
+  const key = p => p.lat.toFixed(6) + ',' + p.lon.toFixed(6);
+
+  function buildLine(id, name, elements) {
+    // 1) Regrouper les tronçons OSM portant la même référence SNCF (une même section peut être découpée en plusieurs ways).
+    const groups = new Map();
+    for (const e of elements) {
+      if (e.type !== 'way' || !e.geometry || e.geometry.length < 2) continue;
+      const r = parseRef(e.tags, id);
+      if (!r || r.a === r.b) continue;
+      const k = r.track + '|' + r.a + '|' + r.b;
+      if (!groups.has(k)) groups.set(k, { track: r.track, lo: Math.min(r.a, r.b), hi: Math.max(r.a, r.b), ways: [] });
+      groups.get(k).ways.push(e);
+    }
+    const dropSamples = [];
+    let dropped = 0;
+    const ok = [];
+    for (const g of groups.values()) {
+      const chain = chainWays(g.ways);
+      const span = g.hi - g.lo;
+      if (!chain) { dropped += g.ways.length; if (dropSamples.length < 6) dropSamples.push(`${g.track} ${g.lo}-${g.hi} : ${g.ways.length} tronçons non chaînables`); continue; }
+      const len = chain.reduce((a, w) => a + w.len, 0);
+      if (Math.abs(len - span) > Math.max(0.06, 0.3 * span)) { dropped += g.ways.length; if (dropSamples.length < 6) dropSamples.push(`${g.track} ${g.lo}-${g.hi} : PK=${span.toFixed(3)} km, géométrie=${len.toFixed(3)} km`); continue; }
+      ok.push({ g, chain, len });
+    }
+    // 2) Orientation de chaque chaîne : le PK à un nœud partagé doit être le même pour les chaînes qui s'y rejoignent.
+    const ends = new Map();
+    ok.forEach((o, i) => {
+      o.s = key(o.chain[0].pts[0]); o.e = key(o.chain[o.chain.length - 1].pts[o.chain[o.chain.length - 1].pts.length - 1]);
+      for (const k of [o.s, o.e]) { if (!ends.has(k)) ends.set(k, []); ends.get(k).push(i); }
+    });
+    const mismatch = (o, i, p0, p1) => {
+      let m = 0;
+      for (const [k, pk] of [[o.s, p0], [o.e, p1]]) for (const j of ends.get(k) || []) { if (j === i) continue; const q = ok[j].g; m += Math.min(Math.abs(pk - q.lo), Math.abs(pk - q.hi)); }
+      return m;
+    };
+    const segs = [];
+    ok.forEach((o, i) => {
+      const asc = mismatch(o, i, o.g.lo, o.g.hi) <= mismatch(o, i, o.g.hi, o.g.lo);
+      const p0 = asc ? o.g.lo : o.g.hi, p1 = asc ? o.g.hi : o.g.lo;
+      let cum = 0;
+      o.chain.forEach((w, wi) => {
+        const pts = [];
+        let c = 0;
+        for (let k = 0; k < w.pts.length; k++) {
+          if (k) c += w.step[k - 1];
+          pts.push([w.pts[k].lat, w.pts[k].lon, p0 + (p1 - p0) * ((cum + c) / o.len)]);
+        }
+        cum += w.len;
+        const a = pts[0][2], b = pts[pts.length - 1][2];
+        segs.push({ id: w.id, track: o.g.track, lo: Math.min(a, b), hi: Math.max(a, b), pts });
+      });
+    });
+    return finalizeLine({ id, name, segs, dropped, dropSamples });
+  }
+
+  /* Ordonne les ways d'un groupe bout à bout. Retourne [{id, pts(lat/lon), step[], len}] orientés, ou null. */
+  function chainWays(ways) {
+    const info = ways.map(w => {
+      const step = [];
+      for (let i = 1; i < w.geometry.length; i++) {
+        const c = Math.cos((w.geometry[i].lat + w.geometry[i - 1].lat) * Math.PI / 360);
+        step.push(Math.hypot((w.geometry[i].lat - w.geometry[i - 1].lat) * M_LAT, (w.geometry[i].lon - w.geometry[i - 1].lon) * M_LON * c) / 1000);
+      }
+      return { id: w.id, pts: w.geometry, step, len: step.reduce((a, b) => a + b, 0), a: key(w.geometry[0]), b: key(w.geometry[w.geometry.length - 1]) };
+    });
+    if (info.length === 1) return info;
+    const at = new Map();
+    info.forEach((w, i) => { for (const k of [w.a, w.b]) { if (!at.has(k)) at.set(k, []); at.get(k).push(i); } });
+    let start = null;
+    for (const [k, l] of at) if (l.length === 1) { start = k; break; }
+    if (start === null) return null;
+    const used = new Set(), out = [];
+    let k = start;
+    while (true) {
+      const nxt = (at.get(k) || []).find(i => !used.has(i));
+      if (nxt === undefined) break;
+      used.add(nxt);
+      const w = info[nxt];
+      if (w.a === k) { out.push(w); k = w.b; }
+      else { out.push({ ...w, pts: w.pts.slice().reverse(), step: w.step.slice().reverse() }); k = w.a; }
+    }
+    return out.length === info.length ? out : null;
+  }
+
+  /* Calcule couverture + index spatial. Idempotent (utilisé aussi après lecture du cache). */
+  function finalizeLine(line) {
+    const segs = line.segs;
+    let lo = Infinity, hi = -Infinity;
+    for (const s of segs) { lo = Math.min(lo, s.lo); hi = Math.max(hi, s.hi); }
+    line.pkMin = lo; line.pkMax = hi;
+    const iv = segs.map(s => [s.lo, s.hi]).sort((a, b) => a[0] - b[0]);
+    let cov = 0, cs = null, ce = null;
+    const gaps = [];
+    for (const [a, b] of iv) {
+      if (cs === null) { cs = a; ce = b; continue; }
+      if (a <= ce + 0.02) ce = Math.max(ce, b);
+      else { cov += ce - cs; if (a - ce > 0.2) gaps.push([ce, a]); cs = a; ce = b; }
+    }
+    if (cs !== null) cov += ce - cs;
+    line.covered = cov; line.gaps = gaps;
+    line.coverage = hi > lo ? cov / (hi - lo) : 0;
+    const grid = new Map();
+    segs.forEach((s, si) => {
+      for (let i = 0; i < s.pts.length - 1; i++) {
+        const a = s.pts[i], b = s.pts[i + 1];
+        const cells = new Set();
+        const n = 1 + Math.ceil(Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1])) * CELL);
+        for (let t = 0; t <= n; t++) {
+          const f = t / n;
+          cells.add(Math.floor((a[0] + (b[0] - a[0]) * f) * CELL) + ',' + Math.floor((a[1] + (b[1] - a[1]) * f) * CELL));
+        }
+        for (const c of cells) {
+          let arr = grid.get(c);
+          if (!arr) grid.set(c, arr = []);
+          arr.push(si, i);
+        }
+      }
+    });
+    line._grid = grid;
+    return line;
+  }
+  function serializeLine(l) { const { _grid, ...r } = l; return r; }
+
+  /* ---------- Projection d'un point sur une ligne ---------- */
+  function project(line, lat, lon, R) {
+    const g = line._grid;
+    if (!g) return null;
+    const ci = Math.floor(lat * CELL), cj = Math.floor(lon * CELL);
+    const rc = Math.ceil(R / 70000 * CELL) + 1; // marge en cellules
+    const cosl = Math.cos(lat * Math.PI / 180);
+    let best = null;
+    const seen = new Set();
+    for (let di = -rc; di <= rc; di++) for (let dj = -rc; dj <= rc; dj++) {
+      const arr = g.get((ci + di) + ',' + (cj + dj));
+      if (!arr) continue;
+      for (let k = 0; k < arr.length; k += 2) {
+        const si = arr[k], pi = arr[k + 1], id = si * 1e6 + pi;
+        if (seen.has(id)) continue; seen.add(id);
+        const s = line.segs[si], a = s.pts[pi], b = s.pts[pi + 1];
+        const ax = (a[1] - lon) * M_LON * cosl, ay = (a[0] - lat) * M_LAT;
+        const bx = (b[1] - lon) * M_LON * cosl, by = (b[0] - lat) * M_LAT;
+        const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+        let t = L2 ? -(ax * dx + ay * dy) / L2 : 0;
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        const d = Math.hypot(ax + dx * t, ay + dy * t);
+        if (d <= R && (!best || d < best.dist)) best = { dist: d, pk: a[2] + (b[2] - a[2]) * t, seg: si, track: s.track };
+      }
+    }
+    return best;
+  }
+
+  /* Position (lat/lon) d'un PK donné – utilisé par la simulation et la carte. */
+  function locate(line, pk, preferTrack) {
+    let best = null;
+    for (const s of line.segs) {
+      if (pk < s.lo - 1e-9 || pk > s.hi + 1e-9) continue;
+      if (preferTrack && s.track !== preferTrack && best) continue;
+      for (let i = 0; i < s.pts.length - 1; i++) {
+        const a = s.pts[i], b = s.pts[i + 1];
+        const lo = Math.min(a[2], b[2]), hi = Math.max(a[2], b[2]);
+        if (pk >= lo && pk <= hi) {
+          const t = hi > lo ? (pk - a[2]) / (b[2] - a[2]) : 0;
+          const r = { lat: a[0] + (b[0] - a[0]) * t, lon: a[1] + (b[1] - a[1]) * t, track: s.track };
+          if (!best) best = r;
+          if (!preferTrack || s.track === preferTrack) return r;
+          break;
+        }
+      }
+    }
+    return best;
+  }
+
+  /* ---------- Moteur de positionnement ---------- */
+  class RailEngine {
+    constructor(lines) { this.setLines(lines); }
+    setLines(lines) { this.lines = lines || []; this.reset(); }
+    reset() { this.cur = null; this.last = null; this.hist = []; this.dir = 0; this.switchCount = 0; this.outlier = 0; }
+
+    update(fix) {
+      if (!this.lines.length) return { status: 'no-data' };
+      const R = Math.max(150, Math.min(500, (fix.acc || 20) * 3));
+      const cands = [];
+      for (const l of this.lines) { const p = project(l, fix.lat, fix.lon, R); if (p) cands.push({ line: l, ...p }); }
+      if (!cands.length) return this._base(fix, 'off-line');
+      cands.sort((a, b) => a.dist - b.dist);
+      let pick = cands[0], ambiguous = false;
+      // Anti-bascule : on garde la ligne courante sauf si une autre est nettement plus proche pendant 4 fixes.
+      if (this.cur) {
+        const same = cands.find(c => c.line.id === this.cur);
+        if (same && pick.line.id !== this.cur) {
+          if (same.dist - pick.dist > 40 && ++this.switchCount >= 4) { this.switchCount = 0; this._switch(pick.line.id); }
+          else pick = same;
+        } else if (same) { this.switchCount = 0; pick = same; }
+      }
+      if (!this.cur) this._switch(pick.line.id);
+      if (cands.length > 1 && cands[1].line.id !== pick.line.id && Math.abs(cands[1].dist - pick.dist) < 30) ambiguous = true;
+
+      const speed = fix.speed > 0 ? fix.speed : 0;
+      let pk = pick.pk;
+      const t = fix.t;
+      if (this.last) {
+        const dt = Math.max(0.2, (t - this.last.t) / 1000);
+        const pred = this.last.pk + this.dir * speed * dt / 1000;
+        const maxJump = (Math.max(speed, this.last.speed) * dt * 2 + (fix.acc || 20) + 60) / 1000;
+        if (Math.abs(pk - this.last.pk) > maxJump && this.outlier < 3) { this.outlier++; pk = pred; }
+        else {
+          this.outlier = 0;
+          const alpha = Math.max(0.35, 1 / (1 + (fix.acc || 20) / 25));
+          pk = pred + (pk - pred) * alpha;
+        }
+      }
+      // Sens de marche d'après l'évolution du PK sur ~30 s.
+      this.hist.push({ pk, t });
+      while (this.hist.length > 2 && t - this.hist[0].t > 30000) this.hist.shift();
+      const h0 = this.hist[0];
+      if (speed > 2 && t - h0.t >= 4000 && Math.abs(pk - h0.pk) >= 0.025) this.dir = pk > h0.pk ? 1 : -1;
+
+      const st = this._base(fix, 'ok');
+      Object.assign(st, { lineId: pick.line.id, lineName: pick.line.name, pk, dist: pick.dist, track: pick.track, ambiguous });
+      st.conf = this._conf(fix.acc || 20, pick.dist, ambiguous, this.outlier);
+      if (fix.acc > 100) st.status = 'poor-accuracy';
+      this.last = { pk, t, speed, lineId: pick.line.id, fixT: Date.now() };
+      return st;
+    }
+
+    /* À appeler ~1×/s : estime le PK à l'estime si le GPS disparaît (tunnel). */
+    tick(nowMs) {
+      const l = this.last;
+      if (!l) return null;
+      const gap = (nowMs - l.t) / 1000;
+      if (gap < 6) return null;
+      if (gap > 120 || l.speed < 5 || !this.dir) return { status: 'gps-lost', gap };
+      const line = this.lines.find(x => x.id === l.lineId);
+      let pk = l.pk + this.dir * l.speed * gap / 1000;
+      if (line) pk = Math.min(line.pkMax, Math.max(line.pkMin, pk));
+      return { status: 'tunnel', lineId: l.lineId, lineName: line && line.name, pk, dir: this.dir, speed: l.speed, conf: 0.25, confLevel: 'low', gap };
+    }
+
+    _switch(id) { this.cur = id; this.hist = []; this.dir = 0; this.last = null; this.outlier = 0; }
+    _base(fix, status) { return { status, dir: this.dir, speed: fix.speed || 0, acc: fix.acc, heading: fix.heading, t: fix.t }; }
+    _conf(acc, dist, amb, out) {
+      let c = acc <= 15 ? 1 : acc <= 30 ? 0.85 : acc <= 60 ? 0.6 : acc <= 100 ? 0.35 : 0.15;
+      c *= dist <= 30 ? 1 : dist <= 80 ? 0.75 : dist <= 150 ? 0.5 : 0.3;
+      if (amb) c *= 0.8;
+      if (out) c *= 0.6;
+      return c;
+    }
+  }
+  function confLevel(c) { return c >= 0.7 ? 'high' : c >= 0.4 ? 'medium' : 'low'; }
+
+  /* ---------- Zones et alertes ----------
+   * Règles :
+   *  - Seules les zones actives de la ligne courante comptent.
+   *  - Les zones qui se chevauchent ou se touchent sont fusionnées : on reste ROUGE jusqu'à la sortie de l'ensemble fusionné.
+   *  - Sens PK croissant : entrée = PK début (le plus petit), sortie = PK fin ; sens décroissant : inverse.
+   *    Les zones déjà dépassées (derrière le train) sont ignorées.
+   *  - Sens inconnu (arrêt, début de trajet) : on alerte sur la zone la plus proche dans les deux sens (prudent).
+   *  - Dans la zone : ROUGE. À moins de `warnM` (1 km) de l'entrée : ORANGE. Sinon NORMAL.
+   */
+  function mergeZones(zs) {
+    const a = zs.map(z => ({ lo: Math.min(z.pkStart, z.pkEnd), hi: Math.max(z.pkStart, z.pkEnd), names: [z.name], color: z.color })).sort((x, y) => x.lo - y.lo);
+    const out = [];
+    for (const z of a) {
+      const l = out[out.length - 1];
+      if (l && z.lo <= l.hi + 1e-9) { l.hi = Math.max(l.hi, z.hi); l.names.push(z.name); }
+      else out.push(z);
+    }
+    return out;
+  }
+  function evaluateZones(zones, state, warnM) {
+    warnM = warnM || 1000;
+    const res = { level: 'normal', zone: null, distM: null, exitM: null };
+    if (!state || state.pk == null || !state.lineId) return res;
+    const merged = mergeZones(zones.filter(z => z.active && z.lineId === state.lineId));
+    const pk = state.pk, dir = state.dir || 0;
+    let best = null;
+    for (const z of merged) {
+      if (pk >= z.lo && pk <= z.hi) {
+        const exit = dir > 0 ? z.hi : dir < 0 ? z.lo : Math.min(z.hi - pk, pk - z.lo) + pk;
+        return { level: 'alert', zone: z, distM: 0, exitM: Math.abs(exit - pk) * 1000 };
+      }
+      let d;
+      if (dir > 0) d = z.lo > pk ? z.lo - pk : null;
+      else if (dir < 0) d = z.hi < pk ? pk - z.hi : null;
+      else d = Math.min(Math.abs(z.lo - pk), Math.abs(pk - z.hi));
+      if (d == null) continue;
+      if (!best || d < best.d) best = { z, d };
+    }
+    if (best && best.d * 1000 <= warnM) return { level: 'warn', zone: best.z, distM: best.d * 1000, exitM: null };
+    if (best) res.nextM = best.d * 1000, res.zone = best.z;
+    return res;
+  }
+
+  const api = { formatPK, parsePK, fmtDist, buildLine, finalizeLine, serializeLine, project, locate, RailEngine, evaluateZones, mergeZones, confLevel, parseRef };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Rail = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>(function () {
+  'use strict';
+  const R = window.Rail;
+  const $ = s => document.querySelector(s);
+  const el = (t, a, ...c) => { const e = document.createElement(t); Object.entries(a || {}).forEach(([k, v]) => k === 'class' ? e.className = v : k.startsWith('on') ? e.addEventListener(k.slice(2), v) : e.setAttribute(k, v)); c.flat().forEach(x => e.append(x)); return e; };
+
+  /* Lignes réelles SNCF Réseau du trajet Nantes → Bordeaux (numéros de ligne RFN). Les PK viennent d'OpenStreetMap (tag ref:FR:SNCF_Reseau). */
+  const LINES = [
+    { id: '530000', name: 'Nantes → Saintes', short: 'L530 000', bbox: [45.60, -1.95, 47.30, -0.50] },
+    { id: '500000', name: 'Saintes → Bordeaux', short: 'L500 000', bbox: [44.75, -0.80, 45.80, -0.20] }
+  ];
+  const ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+
+  /* ---------- Stockage ---------- */
+  const store = {
+    get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
+  };
+  const idb = {
+    db: null,
+    open() { return new Promise((res, rej) => { if (this.db) return res(this.db); const r = indexedDB.open('pk-rail', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(this.db = r.result); r.onerror = () => rej(r.error); }); },
+    async get(k) { try { const db = await this.open(); return await new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); } catch (e) { return undefined; } },
+    async set(k, v) { try { const db = await this.open(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); } catch (e) { } }
+  };
+
+  let lines = [];          // lignes chargées (avec index)
+  let meta = {};           // infos d'import
+  let zones = store.get('zones', []);
+  let engine = new R.RailEngine([]);
+  let state = null;        // dernier état moteur
+  let mode = 'gps';        // 'gps' | 'sim'
+  let lastFixAt = 0;
+
+  /* ---------- Onglets ---------- */
+  document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('nav button').forEach(x => x.setAttribute('aria-selected', x === b));
+    document.querySelectorAll('main > section').forEach(s => s.hidden = s.id !== 'tab-' + b.dataset.tab);
+    if (b.dataset.tab === 'map') initMap();
+  }));
+
+  /* ---------- Chargement des données ---------- */
+  async function loadCached() {
+    const data = await idb.get('lines');
+    meta = (await idb.get('meta')) || {};
+    if (data && data.length) setLines(data.map(R.finalizeLine));
+  }
+  function setLines(ls) {
+    lines = ls; engine.setLines(lines); state = null;
+    renderData(); renderZones(); render();
+  }
+
+  async function overpass(query, onTry) {
+    let err;
+    for (const ep of ENDPOINTS) {
+      try {
+        onTry && onTry(ep);
+        const r = await fetch(ep, { method: 'POST', body: 'data=' + encodeURIComponent(query), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return await r.json();
+      } catch (e) { err = e; }
+    }
+    throw err || new Error('Overpass indisponible');
+  }
+  async function download() {
+    const btn = $('#btn-dl'), log = $('#dl-log');
+    btn.disabled = true; log.textContent = '';
+    const out = [];
+    try {
+      for (const L of LINES) {
+        log.textContent += `Téléchargement ${L.name} (${L.short})…\n`;
+        const q = `[out:json][timeout:180];way["ref:FR:SNCF_Reseau"~"(^|;)${L.id},"](${L.bbox.join(',')});out geom;`;
+        const j = await overpass(q, ep => log.textContent += `  serveur ${new URL(ep).host}\n`);
+        const line = R.buildLine(L.id, L.name, j.elements || []);
+        log.textContent += `  ${line.segs.length} tronçons valides, ${line.dropped} écartés\n` + (line.dropSamples || []).map(x => '    ex. ' + x + '\n').join('') + `  couverture PK ${Math.round(line.coverage * 100)} %\n`;
+        if (line.segs.length) out.push(line);
+      }
+      if (!out.length) throw new Error('Aucun tronçon avec PK reçu');
+      meta = { source: 'OpenStreetMap (ODbL) – ref:FR:SNCF_Reseau', date: new Date().toISOString() };
+      await idb.set('lines', out.map(R.serializeLine)); await idb.set('meta', meta);
+      log.textContent += 'Données enregistrées sur cet appareil : le site fonctionne maintenant hors ligne.\n';
+      setLines(out);
+    } catch (e) {
+      log.textContent += 'Échec : ' + e.message + '\nVérifie ta connexion puis réessaie (ou importe un fichier JSON ci-dessous).\n';
+    }
+    btn.disabled = false;
+  }
+  function importFile(f) {
+    const r = new FileReader();
+    r.onload = async () => {
+      try {
+        const j = JSON.parse(r.result);
+        const arr = Array.isArray(j) ? j : j.lines;
+        const ls = arr.map(l => R.finalizeLine({ id: l.id, name: l.name, segs: l.segs.map(s => ({ id: s.id, track: s.track || '', lo: s.lo ?? Math.min(...s.pts.map(p => p[2])), hi: s.hi ?? Math.max(...s.pts.map(p => p[2])), pts: s.pts })), dropped: 0 }));
+        meta = { source: 'Import manuel : ' + f.name, date: new Date().toISOString() };
+        await idb.set('lines', ls.map(R.serializeLine)); await idb.set('meta', meta);
+        setLines(ls);
+      } catch (e) { alert('Fichier invalide : ' + e.message); }
+    };
+    r.readAsText(f);
+  }
+  async function exportData() {
+    const blob = new Blob([JSON.stringify({ lines: lines.map(R.serializeLine) })], { type: 'application/json' });
+    const a = el('a', { href: URL.createObjectURL(blob), download: 'lignes-pk.json' }); a.click();
+  }
+
+  function renderData() {
+    const box = $('#data-status'); box.textContent = '';
+    if (!lines.length) { box.append(el('p', { class: 'warn-txt' }, 'Aucune donnée ferroviaire : appuie sur « Télécharger » (connexion requise, une seule fois).')); return; }
+    const t = el('table');
+    t.append(el('tr', {}, ...['Ligne', 'PK min–max', 'Tronçons', 'Couverture PK', 'Trous > 200 m'].map(x => el('th', {}, x))));
+    for (const l of lines) {
+      t.append(el('tr', {}, el('td', {}, `${l.name} (${l.id})`), el('td', {}, `${R.formatPK(l.pkMin)} → ${R.formatPK(l.pkMax)}`), el('td', {}, String(l.segs.length)),
+        el('td', {}, Math.round(l.coverage * 100) + ' %'), el('td', {}, l.gaps.length ? l.gaps.slice(0, 6).map(g => `${R.formatPK(g[0])}→${R.formatPK(g[1])}`).join(', ') + (l.gaps.length > 6 ? '…' : '') : 'aucun')));
+    }
+    box.append(t, el('p', { class: 'muted' }, `Source : ${meta.source || '?'} · ${meta.date ? new Date(meta.date).toLocaleString('fr-FR') : ''}`));
+    $('#sim-line').replaceChildren(...lines.map(l => el('option', { value: l.id }, `${l.name} (${l.id})`)));
+    $('#zone-line').replaceChildren(...lines.map(l => el('option', { value: l.id }, `${l.name} (${l.id})`)));
+    updateSimRange();
+  }
+
+  /* ---------- Rendu principal ---------- */
+  const LVL = { normal: 'normal', warn: 'warn', alert: 'alert' };
+  const STATUS_TXT = {
+    'no-data': 'Données ferroviaires absentes — onglet Données', 'off-line': 'Aucune ligne détectée / trop éloigné de la voie',
+    'poor-accuracy': 'Précision GPS insuffisante', 'gps-lost': 'Signal GPS perdu', tunnel: 'Tunnel / perte GPS — PK estimé'
+  };
+  function render() {
+    const s = state;
+    const ev = R.evaluateZones(zones, s, 1000);
+    document.body.dataset.state = LVL[ev.level];
+    $('#line-name').textContent = s && s.lineName ? `${s.lineName.toUpperCase()}${lineShort(s.lineId)}` : 'LIGNE —';
+    const pkEl = $('#pk');
+    pkEl.textContent = s && s.pk != null ? 'PK ' + R.formatPK(s.pk) : 'PK —';
+    pkEl.classList.toggle('dim', !s || s.pk == null || s.conf < 0.4 || (s.status && s.status !== 'ok'));
+    const cl = s && s.conf != null ? R.confLevel(s.conf) : null;
+    $('#conf').textContent = cl ? { high: 'Confiance élevée', medium: 'Confiance moyenne', low: 'Confiance faible' }[cl] : '';
+    $('#conf').dataset.l = cl || '';
+    let banner = '🟢 NORMAL', sub = '';
+    if (ev.level === 'warn') { banner = '🟠 ZONE À PROXIMITÉ'; sub = `Entrée dans la zone dans ${R.fmtDist(ev.distM)} — ${ev.zone.names.join(' + ')}`; }
+    else if (ev.level === 'alert') { banner = '🔴 VOUS ÊTES DANS LA ZONE'; sub = `PK ${R.formatPK(s.pk)} — sortie dans ${R.fmtDist(ev.exitM)} — ${ev.zone.names.join(' + ')}`; }
+    else if (ev.nextM != null) sub = `Prochaine zone dans ${R.fmtDist(ev.nextM)}`;
+    $('#banner').textContent = banner; $('#banner-sub').textContent = sub;
+    const msg = !lines.length ? STATUS_TXT['no-data'] : s && STATUS_TXT[s.status] || (s && s.ambiguous ? 'Plusieurs lignes possibles' : '');
+    $('#status').textContent = msg;
+    $('#speed').textContent = s && s.speed != null ? Math.round(s.speed * 3.6) + ' km/h' : '—';
+    $('#acc').textContent = s && s.acc != null ? '±' + Math.round(s.acc) + ' m' : '—';
+    $('#dir').textContent = s && s.dir ? (s.dir > 0 ? 'PK croissant ▲' : 'PK décroissant ▼') : 'Sens inconnu';
+    $('#dist').textContent = s && s.dist != null ? Math.round(s.dist) + ' m' : '—';
+    updateMap();
+  }
+  function lineShort(id) { const L = LINES.find(x => x.id === id); return L ? ' · ' + L.short : ''; }
+
+  function onState(st) { state = st; render(); }
+  function handleFix(fix) {
+    lastFixAt = Date.now();
+    onState(engine.update(fix));
+  }
+
+  /* ---------- GPS ---------- */
+  let watchId = null, wake = null;
+  function startGPS() {
+    if (!('geolocation' in navigator)) { $('#status').textContent = 'GPS indisponible sur cet appareil'; return; }
+    if (watchId != null) return;
+    $('#gps-btn').textContent = 'Arrêter le GPS';
+    watchId = navigator.geolocation.watchPosition(p => {
+      if (mode !== 'gps') return;
+      handleFix({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, speed: p.coords.speed, heading: p.coords.heading, t: p.timestamp });
+    }, e => {
+      state = { status: 'gps-error' };
+      $('#status').textContent = e.code === 1 ? 'Permission de localisation refusée (réglages du navigateur)' : e.code === 2 ? 'GPS désactivé ou indisponible' : 'Délai GPS dépassé';
+    }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+    requestWake();
+  }
+  function stopGPS() { if (watchId != null) navigator.geolocation.clearWatch(watchId); watchId = null; $('#gps-btn').textContent = 'Démarrer le GPS'; if (wake) { wake.release().catch(() => { }); wake = null; } }
+  async function requestWake() { try { if ('wakeLock' in navigator) wake = await navigator.wakeLock.request('screen'); } catch (e) { } }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && watchId != null) requestWake(); });
+  setInterval(() => {   // tunnel / perte GPS
+    if (mode !== 'gps' || !state || state.pk == null) return;
+    const t = engine.tick(Date.now());
+    if (t) { state = Object.assign({}, state, t, { speed: t.speed ?? state.speed }); if (t.status === 'gps-lost') state.conf = 0.1; render(); }
+  }, 1000);
+
+  /* ---------- Simulation (pour tester sans bouger, sur les vraies géométries) ---------- */
+  let simTimer = null;
+  function updateSimRange() {
+    const l = lines.find(x => x.id === $('#sim-line').value) || lines[0]; if (!l) return;
+    const r = $('#sim-pk'); r.min = Math.floor(l.pkMin); r.max = Math.ceil(l.pkMax); r.step = 0.1;
+    if (!(+r.value >= r.min && +r.value <= r.max)) r.value = Math.round((l.pkMin + l.pkMax) / 2);
+    $('#sim-pk-val').textContent = R.formatPK(+r.value);
+  }
+  function simStart() {
+    const l = lines.find(x => x.id === $('#sim-line').value);
+    if (!l) { $('#status').textContent = 'Simulation impossible : aucune donnée de ligne. Onglet Données > Télécharger.'; return; }
+    mode = 'sim'; engine.reset();
+    let pk = +$('#sim-pk').value; const dirSign = +$('#sim-dir').value; const v = +$('#sim-speed').value / 3.6;
+    $('#sim-btn').textContent = 'Arrêter la simulation';
+    clearInterval(simTimer);
+    let t = Date.now();
+    simTimer = setInterval(() => {
+      t += 1000;
+      const spd = v * +$('#sim-mult').value;
+      pk += dirSign * spd / 1000;
+      if (pk < l.pkMin || pk > l.pkMax) return simStop();
+      const p = R.locate(l, pk);
+      if (!p) return;
+      const j = () => (Math.random() - .5) * 8 / 111000;
+      handleFix({ lat: p.lat + j(), lon: p.lon + j(), acc: 8, speed: v, heading: 0, t });
+    }, 1000);
+  }
+  function simStop() { clearInterval(simTimer); simTimer = null; mode = 'gps'; $('#sim-btn').textContent = 'Lancer la simulation'; }
+  $('#sim-btn').addEventListener('click', () => simTimer ? simStop() : simStart());
+  $('#sim-line').addEventListener('change', updateSimRange);
+  $('#sim-pk').addEventListener('input', () => $('#sim-pk-val').textContent = R.formatPK(+$('#sim-pk').value));
+  $('#gps-btn').addEventListener('click', () => watchId == null ? startGPS() : stopGPS());
+  $('#btn-dl').addEventListener('click', download);
+  $('#file-in').addEventListener('change', e => e.target.files[0] && importFile(e.target.files[0]));
+  $('#btn-export').addEventListener('click', exportData);
+
+  /* ---------- Zones ---------- */
+  function saveZones() { store.set('zones', zones); renderZones(); render(); }
+  function lineLabel(id) { const l = lines.find(x => x.id === id) || LINES.find(x => x.id === id); return l ? l.name : id; }
+  function renderZones() {
+    const box = $('#zone-list'); box.textContent = '';
+    if (!zones.length) box.append(el('p', { class: 'muted' }, 'Aucune zone. Crée-en une ci-dessous.'));
+    zones.forEach(z => {
+      const row = el('div', { class: 'zone' + (z.active ? '' : ' off') },
+        el('span', { class: 'swatch', style: `background:${z.color}` }),
+        el('div', { class: 'zinfo' }, el('b', {}, z.name), el('div', { class: 'muted' }, `${lineLabel(z.lineId)} · PK ${R.formatPK(z.pkStart)} → ${R.formatPK(z.pkEnd)}${z.desc ? ' · ' + z.desc : ''}`)),
+        el('label', { class: 'sw' }, el('input', { type: 'checkbox', ...(z.active ? { checked: '' } : {}), onchange: e => { z.active = e.target.checked; saveZones(); } }), el('span', {}, z.active ? 'Active' : 'Inactive')),
+        el('button', { class: 'sm', onclick: () => editZone(z) }, 'Modifier'),
+        el('button', { class: 'sm danger', onclick: () => { if (confirm('Supprimer la zone « ' + z.name + ' » ?')) { zones = zones.filter(x => x !== z); saveZones(); } } }, 'Supprimer'));
+      box.append(row);
+    });
+  }
+  let editing = null;
+  function editZone(z) {
+    editing = z; $('#zone-form-title').textContent = z ? 'Modifier la zone' : 'Nouvelle zone';
+    $('#zone-name').value = z ? z.name : ''; $('#zone-pk1').value = z ? R.formatPK(z.pkStart) : ''; $('#zone-pk2').value = z ? R.formatPK(z.pkEnd) : '';
+    $('#zone-color').value = z ? z.color : '#d70015'; $('#zone-desc').value = z ? z.desc || '' : '';
+    if (z) $('#zone-line').value = z.lineId;
+    $('#zone-name').focus();
+  }
+  $('#zone-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const a = R.parsePK($('#zone-pk1').value), b = R.parsePK($('#zone-pk2').value);
+    if (a == null || b == null || !$('#zone-line').value) { alert('PK invalides (ex. 120+000 ou 120.5) ou ligne manquante.'); return; }
+    const z = editing || { id: 'z' + Date.now(), active: true };
+    Object.assign(z, { name: $('#zone-name').value || 'Zone', lineId: $('#zone-line').value, pkStart: Math.min(a, b), pkEnd: Math.max(a, b), color: $('#zone-color').value, desc: $('#zone-desc').value });
+    if (!editing) zones.push(z);
+    editZone(null); saveZones();
+  });
+  $('#zone-cancel').addEventListener('click', () => editZone(null));
+
+  /* ---------- Carte (secondaire ; l'appli marche sans) ---------- */
+  let map = null, layers = {}, marker = null;
+  function initMap() {
+    if (typeof L === 'undefined') { drawFallback(); return; }
+    if (map) { setTimeout(() => map.invalidateSize(), 50); return; }
+    map = L.map('map', { preferCanvas: true }).setView([46.2, -1.0], 8);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
+    layers.lines = L.layerGroup().addTo(map); layers.zones = L.layerGroup().addTo(map);
+    drawLines(); updateMap();
+  }
+  function drawLines() {
+    if (!map) return; layers.lines.clearLayers(); layers.zones.clearLayers();
+    lines.forEach(l => l.segs.forEach(s => L.polyline(s.pts.map(p => [p[0], p[1]]), { color: '#3478f6', weight: 3 }).addTo(layers.lines)));
+    zones.filter(z => z.active).forEach(z => { const l = lines.find(x => x.id === z.lineId); if (!l) return; l.segs.forEach(s => { const pts = s.pts.filter(p => p[2] >= z.pkStart && p[2] <= z.pkEnd).map(p => [p[0], p[1]]); if (pts.length > 1) L.polyline(pts, { color: z.color, weight: 8, opacity: .85 }).bindTooltip(z.name).addTo(layers.zones); }); });
+    const all = lines.flatMap(l => l.segs.flatMap(s => s.pts.filter((_, i) => i % 20 === 0).map(p => [p[0], p[1]])));
+    if (all.length) map.fitBounds(all);
+  }
+  let lastDrawKey = '';
+  /* Plan simplifié sans fond de carte (aucun réseau nécessaire). */
+  function drawFallback() {
+    const box = $('#map'); let c = box.querySelector('canvas');
+    if (!c) { box.textContent = ''; c = document.createElement('canvas'); box.append(c); }
+    const W = c.width = box.clientWidth || 360, H = c.height = box.clientHeight || 480, g = c.getContext('2d');
+    g.fillStyle = '#10151c'; g.fillRect(0, 0, W, H);
+    if (!lines.length) { g.fillStyle = '#fff'; g.font = '16px sans-serif'; g.fillText('Aucune donnée : onglet Données > Télécharger', 14, 30); return; }
+    let a = 90, b = -90, d = 180, e = -180;
+    lines.forEach(l => l.segs.forEach(s => s.pts.forEach(p => { a = Math.min(a, p[0]); b = Math.max(b, p[0]); d = Math.min(d, p[1]); e = Math.max(e, p[1]); })));
+    const k = Math.cos((a + b) * Math.PI / 360), sc = Math.min((W - 30) / ((e - d) * k || 1), (H - 30) / ((b - a) || 1));
+    const X = lo => 15 + (lo - d) * k * sc, Y = la => H - 15 - (la - a) * sc;
+    const stroke = (pts, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(X(p[1]), Y(p[0])) : g.moveTo(X(p[1]), Y(p[0]))); g.stroke(); };
+    lines.forEach(l => l.segs.forEach(s => stroke(s.pts, '#3478f6', 2)));
+    zones.filter(z => z.active).forEach(z => { const l = lines.find(x => x.id === z.lineId); l && l.segs.forEach(s => stroke(s.pts.filter(p => p[2] >= z.pkStart && p[2] <= z.pkEnd), z.color, 6)); });
+    if (state && state.pk != null) { const l = lines.find(x => x.id === state.lineId), p = l && R.locate(l, state.pk, state.track); if (p) { g.fillStyle = '#ff3b30'; g.strokeStyle = '#fff'; g.lineWidth = 3; g.beginPath(); g.arc(X(p.lon), Y(p.lat), 8, 0, 7); g.fill(); g.stroke(); } }
+  }
+  function updateMap() {
+    if (typeof L === 'undefined') { if (!$('#tab-map').hidden) drawFallback(); return; }
+    if (!map) return;
+    const k = lines.length + '|' + JSON.stringify(zones.map(z => [z.active, z.pkStart, z.pkEnd, z.lineId]));
+    if (k !== lastDrawKey) { lastDrawKey = k; drawLines(); }
+    if (state && state.pk != null && state.lineId) {
+      const l = lines.find(x => x.id === state.lineId), p = l && R.locate(l, state.pk, state.track);
+      if (p) { if (!marker) marker = L.circleMarker([p.lat, p.lon], { radius: 9, color: '#fff', fillColor: '#ff3b30', fillOpacity: 1, weight: 3 }).addTo(map); else marker.setLatLng([p.lat, p.lon]); marker.bindTooltip('PK ' + R.formatPK(state.pk)); }
+    }
+  }
+
+  /* ---------- Démarrage ---------- */
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => { });
+  loadCached().then(() => { renderZones(); render(); });
+  window.__app = { handleFix, setLines, get state() { return state; }, get engine() { return engine; }, addZone: z => { zones.push(z); saveZones(); } };
+})();
+</script>
+</body>
+</html>
